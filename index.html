@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧵 Yarn Production Tracker - Smart Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            padding: 16px; 
+        }
+        .container { 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); 
+            overflow: hidden;
+            max-width: 1400px;
+        }
+        .header { 
+            background: linear-gradient(125deg, #1f4e78 0%, #2c5aa0 100%); 
+            color: white; 
+            padding: 10px; 
+            text-align: center; 
+            position: relative; 
+        }
+        .header h1 { font-size: 1.8em; margin-bottom: 3px; }
+        .header p { font-size: 0.85em; opacity: 0.9; }
+        .setup-badge { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            background: rgba(255,255,255,0.2); 
+            padding: 10px 15px; 
+            border-radius: 20px; 
+            font-size: 0.9em; 
+            cursor: pointer; 
+            border: 1px solid white; 
+            color: white;
+            transition: all 0.3s;
+        }
+        .setup-badge:hover { background: rgba(255,255,255,0.3); }
+        .setup-badge.configured { background: #4CAF50; }
+
+        .tabs-container {
+            display: flex;
+            background: #f1f1f1;
+            border-bottom: 2px solid #ddd;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            background: #f1f1f1;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            color: #333;
+            transition: all 0.3s;
+            white-space: nowrap;
+            min-width: 120px;
+        }
+        .tab-btn:hover { background: #e0e0e0; }
+        .tab-btn.active {
+            background: white;
+            color: #1f4e78;
+            border-bottom: 4px solid #667eea;
+        }
+
+        .page {
+            display: none;
+            padding: 8px;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .content { padding: 0; }
+        .search-section { 
+            margin-bottom: 15px; 
+            background: #f8f9fa; 
+            padding: 12px 14px; 
+            border-radius: 6px; 
+            display: flex; 
+            gap: 10px; 
+            align-items: center; 
+            flex-wrap: wrap;
+            border: 1px solid #e0e0e0;
+        }
+        .search-section-label {
+            font-weight: 600;
+            color: #1f4e78;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .input-section { 
+            display: flex; 
+            gap: 12px; 
+            margin-bottom: 16px; 
+            background: #f8f9fa; 
+            padding: 16px 14px; 
+            border-radius: 6px; 
+            overflow-x: auto;
+            align-items: flex-end; 
+            flex-wrap: wrap;
+            border: 1px solid #e0e0e0;
+        }
+        
+        
+        .input-group { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 4px;
+        }
+        .input-group label { 
+            font-weight: 600; 
+            margin-bottom: 0px; 
+            color: #1f4e78; 
+            font-size: 0.8em; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+        }
+        .input-group input { 
+            padding: 8px 10px; 
+            border: 1.5px solid #ddd; 
+            border-radius: 4px; 
+            font-size: 0.9em; 
+            transition: all 0.3s;
+        }
+        .input-group input:focus { 
+            outline: none; 
+            border-color: #667eea; 
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+            background: #f8f9ff;
+        }
+        .input-group input:disabled {
+            background: #f0f0f0;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        button { 
+            padding: 10px 16px; 
+            border: none; 
+            border-radius: 6px; 
+            font-size: 0.95em; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.3s;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary { 
+            background: #667eea; 
+            color: white; 
+        }
+        .btn-primary:hover:not(:disabled) { background: #764ba2; }
+        .btn-secondary { 
+            background: #999; 
+            color: white; 
+        }
+        .btn-secondary:hover:not(:disabled) { background: #666; }
+        .btn-danger { 
+            background: #ff4444; 
+            color: white; 
+        }
+        .btn-danger:hover:not(:disabled) { background: #cc0000; }
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-success:hover:not(:disabled) { background: #45a049; }
+
+        .table-section { overflow-x: auto; }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px; 
+            font-size: 13px;
+        }
+        thead { 
+            background: #1f4e78; 
+            color: white; 
+            position: sticky; 
+            top: 0; 
+        }
+        th { 
+            padding: 12px; 
+            text-align: center; 
+            font-weight: 600; 
+            border: 1px solid #e0e0e0; 
+            font-size: 12px;
+        }
+        td { 
+            padding: 8px 4px; 
+            text-align: center; 
+            border: 1px solid #e0e0e0; 
+            font-weight: 600; 
+            font-size: 12px;
+        }
+        tbody tr:nth-child(odd) { background: #f9f9f9; }
+        tbody tr:hover { background: #f0f0f0; }
+
+        .green { background-color: #00B050; color: white; }
+        .yellow { background-color: #FFFF00; color: #000; }
+        .red { background-color: #FF0000; color: white; }
+        .blank { background-color: #e8e8e8; color: #bbb; }
+
+        .action-buttons { 
+            display: flex; 
+            gap: 8px; 
+            justify-content: center; 
+        }
+        .edit-btn, .delete-btn { 
+            padding: 6px 10px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.8em; 
+            font-weight: 600;
+        }
+        .edit-btn { 
+            background: #2196F3; 
+            color: white; 
+        }
+        .edit-btn:hover { background: #0b7dda; }
+        .delete-btn { 
+            background: #ff4444; 
+            color: white; 
+        }
+        .delete-btn:hover { background: #cc0000; }
+
+        .stats { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
+            gap: 8px; 
+            margin-bottom: 10px;
+        }
+        .stat-card { 
+            background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); 
+            color: white; 
+            padding: 8px; 
+            border-radius: 6px; 
+            text-align: center;
+        }
+        .stat-label { 
+            font-size: 0.7em; 
+            opacity: 0.9; 
+            margin-bottom: 2px;
+        }
+        .stat-value { 
+            font-size: 1.5em; 
+            font-weight: bold;
+        }
+
+        .empty-message { 
+            text-align: center; 
+            padding: 40px; 
+            color: #999; 
+            font-size: 1.1em;
+        }
+
+        .modal { 
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            height: 100%; 
+            background-color: rgba(0,0,0,0.5); 
+            overflow-y: auto;
+        }
+        .modal-content { 
+            background-color: white; 
+            margin: 5% auto; 
+            padding: 30px; 
+            border-radius: 12px; 
+            width: 90%; 
+            max-width: 550px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal-header { 
+            font-size: 1.8em; 
+            font-weight: bold; 
+            margin-bottom: 15px; 
+            color: #1f4e78;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .modal-header::before {
+            content: "✏️";
+            font-size: 1.5em;
+        }
+        .modal-buttons { 
+            display: flex; 
+            gap: 10px; 
+            margin-top: 25px; 
+            justify-content: flex-end;
+        }
+        
+        .modal-field-group {
+            margin-bottom: 20px;
+        }
+        .modal-field-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            color: #1f4e78;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+        .modal-field-group label .required {
+            color: #ff4444;
+            font-size: 1.2em;
+        }
+        .modal-field-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+        .modal-field-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: #f8f9ff;
+        }
+        .modal-field-group input:disabled {
+            background: #f5f5f5;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        .auto-save-indicator { 
+            position: fixed; 
+            bottom: 20px; 
+            right: 20px; 
+            padding: 15px 20px; 
+            border-radius: 20px; 
+            font-weight: 600; 
+            font-size: 0.9em; 
+            display: none; 
+            z-index: 999;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { 
+            from { transform: translateX(400px); opacity: 0; } 
+            to { transform: translateX(0); opacity: 1; } 
+        }
+        .auto-save-indicator.saving { 
+            background: #ffeb3b; 
+            color: #333; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px;
+        }
+        .auto-save-indicator.success { 
+            background: #4CAF50; 
+            color: white; 
+            display: block;
+        }
+        .auto-save-indicator.error { 
+            background: #ff5252; 
+            color: white; 
+            display: block;
+        }
+
+        .bar-chart-container { padding: 10px; }
+
+        .bar-chart-item { 
+            background: white; 
+            padding: 12px 16px; 
+            margin-bottom: 10px; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 6px; 
+            display: flex; 
+            align-items: center; 
+            gap: 16px; 
+        }
+        .bar-chart-header { 
+            display: flex; 
+            gap: 24px; 
+            min-width: 160px; 
+            flex-shrink: 0; 
+        }
+        .bar-info-label { 
+            font-weight: 600; 
+            color: #1f4e78; 
+            font-size: 10px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            margin-bottom: 2px; 
+        }
+        .bar-info-value { 
+            color: #333; 
+            font-size: 15px; 
+            font-weight: 600; 
+        }
+
+        .bar-wrapper { 
+            flex: 1; 
+            height: 26px; 
+            display: flex;
+            border-radius: 4px; 
+            overflow: hidden; 
+            border: 1px solid #ccc; 
+            position: relative; 
+            max-width: 900px; 
+        }
+
+        .day-slice { 
+            height: 100%; 
+            flex-shrink: 0; 
+            cursor: pointer; 
+            position: relative; 
+        }
+        .day-slice.green  { background: #00B050; }
+        .day-slice.yellow { background: #FFFF00; }
+        .day-slice.split  { background: linear-gradient(to right, #00B050 50%, #FFFF00 50%); }
+        .day-slice.red    { background: #FF0000; }
+        .day-slice.blank  { background: #e8e8e8; }
+        .day-slice + .day-slice { border-left: 1px solid rgba(0,0,0,0.08); }
+        .day-slice:hover  { filter: brightness(1.12); z-index: 2; }
+
+        .bar-no-data { 
+            text-align: center; 
+            padding: 40px; 
+            color: #999; 
+        }
+        .tooltip-popup { 
+            position: fixed; 
+            background: #1f4e78; 
+            color: white; 
+            padding: 8px 14px; 
+            border-radius: 6px; 
+            font-size: 12px; 
+            z-index: 10000; 
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3); 
+            pointer-events: none; 
+            line-height: 1.7; 
+            white-space: nowrap; 
+            display: none; 
+        }
+
+        .loading-spinner { 
+            display: inline-block; 
+            width: 18px; 
+            height: 18px; 
+            border: 3px solid #f3f3f3; 
+            border-top: 3px solid #667eea; 
+            border-radius: 50%; 
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+
+        .lock-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        .lock-overlay.active { display: flex; }
+        .lock-message {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .lock-message h2 { color: #ff4444; margin-bottom: 15px; font-size: 1.5em; }
+        .lock-message p  { color: #666; margin-bottom: 20px; font-size: 1.05em; }
+        .lock-message button { padding: 12px 30px; font-size: 1em; }
+
+        .report-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .debug-info {
+            background: #f0f7ff;
+            border-left: 4px solid #2196F3;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #1f4e78;
+            display: none;
+        }
+        .debug-info.show { display: block; }
+
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.8em; }
+            table { font-size: 11px; }
+            th, td { padding: 6px 2px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧵Planning Dashboard</h1>
+            <p>SHAHI EXPORTS PRIVATE LIMITED - TIRUPUR</p>
+            <div class="setup-badge" id="setupBadge" onclick="openSetupModal()">⚙️ Setup Google Sheet</div>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="switchTab('dashboard', this)">📊 Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('barview', this)">📈 Bar View</button>
+            <button class="tab-btn" onclick="switchTab('report', this)">📋 Report</button>
+        </div>
+
+    
+        <div class="page active" id="dashboard">
+            <div class="stats" id="statsSection">
+                <div class="stat-card">
+                    <div class="stat-label">Total Machines</div>
+                    <div class="stat-value" id="totalMachines">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Orders</div>
+                    <div class="stat-value" id="totalOrders">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Received</div>
+                    <div class="stat-value" id="totalReceived">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Balance</div>
+                    <div class="stat-value" id="totalBalance">0</div>
+                </div>
+            </div>
+
+            <div class="search-section">
+                <span class="search-section-label">🔍 Search by Date</span>
+                <div class="input-group" style="margin-bottom: 0; flex: 0 1 auto;">
+                    <input type="text" id="searchInput" placeholder="" style="padding: 8px 10px; font-size: 0.9em;">
+                </div>
+                <button class="btn-primary" onclick="performSearch()" style="padding: 8px 16px; font-size: 0.9em;">🔍 Search</button>
+                <button class="btn-secondary" onclick="clearSearch()" style="padding: 8px 16px; font-size: 0.9em;">Clear</button>
+                <button class="btn-danger" onclick="clearAllData()" style="padding: 8px 16px; font-size: 0.9em;">🗑️ Clear All</button>
+            </div>
+
+            <div class="input-section">
+                <div class="input-group" style="flex: 0 0 120px;">
+                    <label>📅 Entry Date</label>
+                    <input type="date" id="entrydate" style="padding: 8px 10px; font-size: 0.9em; width: 115px;">
+                </div>
+                <div class="input-group" style="flex: 0 0 120px;">
+                    <label>📅 Schedule Date</label>
+                    <input type="date" id="scheduledate" style="padding: 8px 10px; font-size: 0.9em; width: 115px;">
+                </div>
+                <div class="input-group" style="flex: 0 0 90px;">
+                    <label>M/C No</label>
+                    <input type="text" id="mcno" list="mcnos" autocomplete="off" style="padding: 8px 10px; font-size: 0.9em; width: 85px;">
+                    <datalist id="mcnos"></datalist>
+                </div>
+                <div class="input-group" style="flex: 0 0 70px;">
+                    <label>Dia</label>
+                    <input type="number" id="dia" style="padding: 8px 10px; font-size: 0.9em; width: 65px;">
+                </div>
+                <div class="input-group" style="flex: 0 0 70px;">
+                    <label>G.G</label>
+                    <input type="number" id="gg" style="padding: 8px 10px; font-size: 0.9em; width: 65px;">
+                </div>
+                <div class="input-group" style="flex: 0 0 90px;">
+                    <label>Item No</label>
+                    <input type="text" id="itemno" autocomplete="off" style="padding: 8px 10px; font-size: 0.9em; width: 85px;">
+                </div>
+                <div class="input-group" style="flex: 0 0 120px;">
+                    <label>Account Holder <span style="color: #ff4444;">*</span></label>
+                    <input type="text" id="accountholder" autocomplete="off" style="padding: 8px 10px; font-size: 0.9em; width: 115px;" required>
+                </div>
+                <div class="input-group" style="flex: 0 0 110px;">
+                    <label>M/C Type</label>
+                    <input list="mctypes" id="mctype" style="padding: 8px 10px; font-size: 0.9em; width: 105px;">
+                    <datalist id="mctypes">
+                        <option value="Auto Stripe">
+                        <option value="Tubular">
+                        <option value="Fleece">
+                        <option value="Rib">
+                        <option value="Open width">
+                        <option value="Interlock">
+                    </datalist>
+                </div>
+                <div class="input-group" style="flex: 0 0 100px;">
+                    <label>Order Qty</label>
+                    <input type="number" id="orderqty" style="padding: 8px 10px; font-size: 0.9em; width: 95px;">
+                </div>
+                <div class="input-group" style="flex: 0 0 100px;">
+                    <label>Yarn Rcvd</label>
+                    <input type="number" id="yarnreceived" style="padding: 8px 10px; font-size: 0.9em; width: 95px;">
+                </div>
+                <div class="input-group" style="flex: 0 0 90px;">
+                    <label>Capacity</label>
+                    <input type="number" id="capacity" style="padding: 8px 10px; font-size: 0.9em; width: 85px;">
+                </div>
+            </div>
+
+
+
+            <div class="table-section">
+                <table id="dataTable">
+                    <thead>
+                        <tr id="headerRow">
+                            <th>📅 Entry Date</th>
+                            <th>📅 Schedule Date</th>
+                            <th>M/C No</th>
+                            <th>Dia</th>
+                            <th>G.G</th>
+                            <th>Item No</th>
+                            <th>Account Holder</th>
+                            <th>M/C Type</th>
+                            <th>Order Qty</th>
+                            <th>Yarn Rcvd</th>
+                            <th>Balance</th>
+                            <th>Capacity</th>
+                            <th id="dayHeaderStart"></th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="40" class="empty-message">📭 No data added yet. Add a machine to get started!</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    
+        <div class="page" id="barview">
+            <div class="bar-chart-container" id="barChartContainer">
+                <div class="bar-no-data">⏳ Loading data...</div>
+            </div>
+        </div>
+
+        <div class="page" id="report">
+            <!-- DEBUG INFO -->
+            <div class="debug-info" id="debugInfo">
+                🔧 Debug Mode: Check browser console (F12) for detailed filter logs
+            </div>
+
+            <div class="search-section" style="margin-bottom:12px;">
+                <div class="input-group">
+                    <label>📅 From Date</label>
+                    <input type="date" id="report-from-date">
+                </div>
+                <div class="input-group">
+                    <label>📅 To Date</label>
+                    <input type="date" id="report-to-date">
+                </div>
+                <div class="input-group" style="min-width:160px;">
+                    <label>🔍 Item No / M/C No</label>
+                    <input type="text" id="report-search" placeholder="">
+                </div>
+                <button class="btn-primary" onclick="filterReport()">🔍 Search</button>
+                <button class="btn-secondary" onclick="clearReportFilter()">✖ Clear</button>
+            </div>
+
+            <div class="report-buttons">
+                <button class="btn-primary" onclick="downloadExcel()">📥 Download Excel</button>
+                <button class="btn-primary" onclick="downloadPDF()">📥 Download PDF</button>
+            </div>
+
+            <div id="report-result-info" style="font-size:0.85em; color:#555; margin-bottom:8px;"></div>
+
+            <div class="table-section">
+                <table id="reportTable">
+                    <thead>
+                        <tr>
+                            <th>📅 Entry Date</th>
+                            <th>📅 Schedule Date</th>
+                            <th>M/C No</th>
+                            <th>Item No</th>
+                            <th>Account Holder</th>
+                            <th>Order Qty</th>
+                            <th>Yarn Received</th>
+                            <th>Balance</th>
+                            <th>Capacity</th>
+                            <th>Yarn Rcvd Days</th>
+                            <th>Balance Days</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody">
+                        <tr><td colspan="11" class="empty-message">📭 No data to report</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="setupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Setup Google Sheet (One-Time Only)</div>
+            <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667eea;">
+                <strong style="color: #1f4e78;">📝 How it works:</strong><br>
+                <span style="color: #555; font-size: 0.95em;">Enter your Google Sheet ID once and all your data will auto-save to Google Sheets!</span>
+            </div>
+            
+            <div class="modal-field-group">
+                <label>📋 Your Google Sheet ID</label>
+                <input type="text" id="setup-sheet-id" placeholder="Copy from: /d/PASTE_HERE/edit">
+            </div>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                <strong style="color: #856404;">🔍 Where to find your Sheet ID:</strong><br>
+                <span style="font-size: 0.9em; color: #666;">
+                    1. Open your Google Sheet<br>
+                    2. Look at the URL in the address bar<br>
+                    3. Copy the part between <code>/d/</code> and <code>/edit</code><br><br>
+                    <code style="background: white; padding: 10px; display: block; border-radius: 4px; margin-top: 8px; font-size: 0.85em;">
+                        https://docs.google.com/spreadsheets/d/<span style="color: #ff0000; font-weight: bold;">1a2b3c...</span>/edit
+                    </code>
+                </span>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeSetupModal()">Cancel</button>
+                <button class="btn-primary" onclick="saveSheetId()">Save & Connect</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Edit Machine Data</div>
+            
+            <div class="modal-field-group">
+                <label>📅 Entry Date</label>
+                <input type="date" id="modal-entrydate">
+            </div>
+            
+            <div class="modal-field-group">
+                <label>📅 Schedule Start Date (When Production Starts)</label>
+                <input type="date" id="modal-scheduledate">
+            </div>
+            
+            <div class="modal-field-group">
+                <label>M/C No <span class="required">*</span></label>
+                <input type="text" id="modal-mcno" required>
+            </div>
+            
+            <div class="modal-field-group">
+                <label>Item No</label>
+                <input type="text" id="modal-itemno">
+            </div>
+            
+            <div class="modal-field-group">
+                <label>Account Holder <span class="required">*</span></label>
+                <input type="text" id="modal-accountholder" required>
+            </div>
+            
+            <div class="modal-field-group">
+                <label>Dia (Diameter)</label>
+                <input type="number" id="modal-dia">
+            </div>
+            
+            <div class="modal-field-group">
+                <label>G.G</label>
+                <input type="number" id="modal-gg">
+            </div>
+            
+            <div class="modal-field-group">
+                <label>M/C Type</label>
+                <input type="text" id="modal-mctype">
+            </div>
+            
+            <div class="modal-field-group">
+                <label>Order Qty <span class="required">*</span></label>
+                <input type="number" id="modal-orderqty" required>
+            </div>
+            
+            <div class="modal-field-group">
+                <label>Yarn Received <span class="required">*</span></label>
+                <input type="number" id="modal-yarnreceived" required>
+            </div>
+            
+            <div class="modal-field-group">
+                <label>Capacity <span class="required">*</span></label>
+                <input type="number" id="modal-capacity" required>
+            </div>
+            
+            <div class="modal-field-group">
+                <label>Balance (Auto)</label>
+                <input type="number" id="modal-balance" disabled>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button class="btn-primary" onclick="saveEdit()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+   
+    <div id="passwordModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Clear All Data</div>
+            <p style="margin-bottom: 20px; color: #666; font-size: 0.95em;">
+                🔐 <strong>Are you sure,you want to delete all the data?</strong><br>
+                Please enter the password to confirm.
+            </p>
+            
+            <div class="modal-field-group">
+                <label>Password <span class="required">*</span></label>
+                <input type="password" id="passwordInput" placeholder="Enter password" onkeypress="if(event.key==='Enter') confirmPassword()">
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closePasswordModal()">Cancel</button>
+                <button class="btn-danger" onclick="confirmPassword()">Confirm Delete</button>
+            </div>
+        </div>
+    </div>
+
+  
+    <div class="lock-overlay" id="lockOverlay">
+        <div class="lock-message">
+            <h2>🔒 All Data Cleared</h2>
+            <p>All input fields are now locked. Click below to unlock and continue working.</p>
+            <button class="btn-primary" onclick="unlockAfterClear()">🔓 Unlock & Continue</button>
+        </div>
+    </div>
+
+    <div class="auto-save-indicator" id="autoSaveIndicator"></div>
+    <div class="tooltip-popup" id="tooltipPopup"></div>
+
+    <script>
+    
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRDC03ss4Ln74hJc_gkEuv6wlxPOAro-VNETIw08_fmRhr7_L4yRsrkcjfDxGvqd82/exec';
+        
+        const CLEAR_PASSWORD = 'Kanmani@8904';
+        let machineData = [];
+        let editingId = null;
+        let filteredIndices = null;
+        let sheetId = localStorage.getItem('googleSheetId') || '1jsw1f6bPo7HFwuAMRuRR01qPwKEhy6Yjr88GAxPALAY';
+        let isLocked = false;
+        let DEBUG_MODE = false;
+
+        const machineDatabase = [
+            { mcno: "A06", dia: 26 }, { mcno: "A09", dia: 26 }, { mcno: "A10", dia: 26 },
+            { mcno: "A12", dia: 26 }, { mcno: "A11", dia: 26 }, { mcno: "A13", dia: 26 },
+            { mcno: "A17", dia: 30 }, { mcno: "A18", dia: 30 }, { mcno: "A20", dia: 30 },
+            { mcno: "A14", dia: 30 }, { mcno: "A19", dia: 30 }, { mcno: "A04", dia: 30 },
+            { mcno: "A05", dia: 30 }, { mcno: "A07", dia: 30 }, { mcno: "A15", dia: 30 },
+            { mcno: "A16", dia: 30 }, { mcno: "F01", dia: 26 }, { mcno: "F02", dia: 26 },
+            { mcno: "F03", dia: 26 }, { mcno: "F05", dia: 26 }, { mcno: "F07", dia: 30 },
+            { mcno: "F08", dia: 30 }, { mcno: "F09", dia: 30 }, { mcno: "F06", dia: 30 },
+            { mcno: "F10", dia: 30 }, { mcno: "F14", dia: 30 }, { mcno: "F04", dia: 30 },
+            { mcno: "T01", dia: 26 }, { mcno: "T02", dia: 26 }, { mcno: "T03", dia: 26 },
+            { mcno: "T04", dia: 26 }, { mcno: "A08", dia: 30 }, { mcno: "T09", dia: 30 },
+            { mcno: "T07", dia: 30 }, { mcno: "T11", dia: 30 }, { mcno: "F11", dia: 30 },
+            { mcno: "T08", dia: 30 }, { mcno: "T10", dia: 30 }, { mcno: "A01", dia: 34 },
+            { mcno: "A02", dia: 34 }, { mcno: "A03", dia: 34 }, { mcno: "F13", dia: 34 },
+            { mcno: "T05", dia: 34 }, { mcno: "T06", dia: 34 }, { mcno: "F12", dia: 34 },
+            { mcno: "O01", dia: 30 }, { mcno: "O02", dia: 30 }, { mcno: "O03", dia: 30 },
+            { mcno: "O04", dia: 30 }, { mcno: "O05", dia: 30 }, { mcno: "O06", dia: 30 },
+            { mcno: "O07", dia: 30 }, { mcno: "O08", dia: 30 }, { mcno: "R04", dia: 30 },
+            { mcno: "R01", dia: 30 }, { mcno: "R07", dia: 30 }, { mcno: "R02", dia: 34 },
+            { mcno: "R03", dia: 34 }, { mcno: "R05", dia: 34 }, { mcno: "R06", dia: 34 },
+            { mcno: "R11", dia: 36 }, { mcno: "R12", dia: 36 }, { mcno: "R08", dia: 34 },
+            { mcno: "R09", dia: 34 }, { mcno: "R10", dia: 34 }, { mcno: "IL01", dia: 30 },
+            { mcno: "IL02", dia: 30 },{ mcno: "T12", dia: 34 }, { mcno: "T13", dia: 32 },
+            { mcno: "T14", dia: 32 }, { mcno: "T15", dia: 30 }, { mcno: "T16", dia: 26 },
+            { mcno: "T17", dia: 26 }, { mcno: "T18", dia: 26 }, { mcno: "T19", dia: 24 }
+        ];
+
+        function initializeDatePicker() {
+            const today = new Date();
+            const formattedDate = today.toISOString().split('T')[0];
+            document.getElementById('entrydate').value = formattedDate;
+            document.getElementById('scheduledate').value = formattedDate;
+            updateTableHeaders();
+            checkSheetIdStatus();
+            initializeMCnoDropdown();
+            loadFromGoogleSheets();
+            console.log('🚀 Yarn Production Tracker Initialized');
+            console.log('📊 Debug Mode Available - Set DEBUG_MODE = true in console');
+        }
+
+        function initializeMCnoDropdown() {
+            const datalist = document.getElementById('mcnos');
+            datalist.innerHTML = '';
+            machineDatabase.forEach(machine => {
+                const option = document.createElement('option');
+                option.value = machine.mcno;
+                datalist.appendChild(option);
+            });
+        }
+
+        function switchTab(tabId, button) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            button.classList.add('active');
+            if (tabId === 'barview') renderBarView();
+            else if (tabId === 'report') generateReport();
+        }
+
+
+        function checkSheetIdStatus() {
+            const badge = document.getElementById('setupBadge');
+            if (sheetId) {
+                badge.classList.add('configured');
+                badge.textContent = '✅ Google Sheet Connected';
+            }
+        }
+        function openSetupModal()  { document.getElementById('setupModal').style.display = 'block'; document.getElementById('setup-sheet-id').value = sheetId; }
+        function closeSetupModal() { document.getElementById('setupModal').style.display = 'none'; }
+        function saveSheetId() {
+            const newSheetId = document.getElementById('setup-sheet-id').value.trim();
+            if (!newSheetId) { alert('⚠️ Please enter your Google Sheet ID!'); return; }
+            sheetId = newSheetId;
+            localStorage.setItem('googleSheetId', sheetId);
+            alert('✅ Google Sheet connected!');
+            closeSetupModal();
+            checkSheetIdStatus();
+            loadFromGoogleSheets();
+        }
+
+        function updateTableHeaders() {
+            const today = new Date();
+            const headerRow = document.getElementById('headerRow');
+            const existingDays = headerRow.querySelectorAll('th').length - 13;
+            for (let i = 0; i < existingDays; i++) headerRow.removeChild(headerRow.children[12]);
+            for (let i = 0; i < 30; i++) {
+                const currentDate = new Date(today);
+                currentDate.setDate(currentDate.getDate() + i);
+                const monthName = currentDate.toLocaleString('default', { month: 'short' });
+                const day = currentDate.getDate();
+                const th = document.createElement('th');
+                th.textContent = `${monthName} ${day}`;
+                headerRow.insertBefore(th, headerRow.lastElementChild);
+            }
+        }
+
+        function calculateDailyProduction(dayNum, orderQty, yarnReceived, capacity, entryDate, scheduleDate) {
+            if (!capacity || capacity === 0) return 0;
+            const today = new Date();
+            const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const columnDate = new Date(todayMidnight);
+            columnDate.setDate(todayMidnight.getDate() + (dayNum - 1));
+            const sp = scheduleDate.split('-');
+            const scheduleMidnight = new Date(parseInt(sp[0]), parseInt(sp[1]) - 1, parseInt(sp[2]));
+            if (columnDate < scheduleMidnight) return 0;
+            const daysSinceSchedule = Math.round((columnDate - scheduleMidnight) / (1000 * 60 * 60 * 24));
+            const balanceYarn = orderQty - yarnReceived;
+            const daysWithReceivedYarn = Math.floor(yarnReceived / capacity);
+            const remainingReceivedYarn = yarnReceived % capacity;
+            if (daysSinceSchedule < daysWithReceivedYarn) return capacity;
+            if (daysSinceSchedule === daysWithReceivedYarn && remainingReceivedYarn > 0) return remainingReceivedYarn;
+            const startBalanceDay = daysWithReceivedYarn + (remainingReceivedYarn > 0 ? 1 : 0);
+            if (daysSinceSchedule >= startBalanceDay) {
+                const daysIntoBalance = daysSinceSchedule - startBalanceDay;
+                const usedInBalance = daysIntoBalance * capacity;
+                if (usedInBalance >= balanceYarn) return 0;
+                return Math.min(capacity, balanceYarn - usedInBalance);
+            }
+            return 0;
+        }
+
+        function getColorClass(dayNum, orderQty, yarnReceived, capacity, qty, entryDate, scheduleDate) {
+            if (!capacity || capacity === 0) return 'blank';
+            const today = new Date();
+            const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const columnDate = new Date(todayMidnight);
+            columnDate.setDate(todayMidnight.getDate() + (dayNum - 1));
+            const sp = scheduleDate.split('-');
+            const scheduleMidnight = new Date(parseInt(sp[0]), parseInt(sp[1]) - 1, parseInt(sp[2]));
+            if (columnDate < scheduleMidnight) return 'blank';
+            if (qty === 0) return 'red';
+            const daysSinceSchedule = Math.round((columnDate - scheduleMidnight) / (1000 * 60 * 60 * 24));
+            const daysWithReceivedYarn = Math.floor(yarnReceived / capacity);
+            const remainingReceivedYarn = yarnReceived % capacity;
+            const startBalanceDay = daysWithReceivedYarn + (remainingReceivedYarn > 0 ? 1 : 0);
+            if (daysSinceSchedule < daysWithReceivedYarn) return 'green';
+            if (daysSinceSchedule === daysWithReceivedYarn && remainingReceivedYarn > 0) return 'green';
+            if (daysSinceSchedule >= startBalanceDay && qty > 0) return 'yellow';
+            return 'red';
+        }
+
+   
+        function showAutoSaveIndicator(type, message) {
+            const indicator = document.getElementById('autoSaveIndicator');
+            indicator.className = `auto-save-indicator ${type}`;
+            if (type === 'saving') {
+                indicator.innerHTML = `<span class="loading-spinner"></span>${message}`;
+            } else {
+                indicator.textContent = message;
+            }
+            if (type !== 'saving') setTimeout(() => { indicator.style.display = 'none'; }, 3000);
+        }
+
+        function autoSaveToGoogleSheets(operation = 'ADD') {
+            if (!sheetId) { showAutoSaveIndicator('error', '❌ Setup Google Sheet first!'); return; }
+            if (machineData.length === 0 && operation === 'ADD') return;
+            showAutoSaveIndicator('saving', 'Saving to Google Sheets...');
+            const dataToSend = {
+                action: operation,
+                sheetId: sheetId,
+                machineData: machineData.map(data => ({
+                    id: data.id,
+                    date: data.date || '',
+                    originalDate: data.originalDate || data.date || '',
+                    scheduledate: data.scheduledate || '',
+                    mcno: data.mcno,
+                    itemno: data.itemno || '',
+                    accountholder: data.accountholder || '',
+                    dia: data.dia || '',
+                    gg: data.gg || '',
+                    mctype: data.mctype || '',
+                    orderqty: data.orderqty,
+                    originalYarnreceived: data.originalYarnreceived !== undefined ? data.originalYarnreceived : data.yarnreceived,
+                    yarnreceived: data.yarnreceived,
+                    balance: data.balance,
+                    capacity: data.capacity
+                }))
+            };
+            const formData = new FormData();
+            formData.append('data', JSON.stringify(dataToSend));
+            fetch(SCRIPT_URL, { method: 'POST', body: formData })
+                .then(r => r.text())
+                .then(text => {
+                    let result;
+                    try { result = JSON.parse(text); } catch(e) { result = { success: false, error: 'Parse error: ' + text }; }
+                    if (result.success) {
+                        showAutoSaveIndicator('success', '✅ Saved to Google Sheets!');
+                        if (document.getElementById('barview').classList.contains('active')) renderBarChartsLive();
+                    } else {
+                        showAutoSaveIndicator('error', '❌ GSheet save failed: ' + (result.error || 'Unknown'));
+                    }
+                })
+                .catch(() => showAutoSaveIndicator('error', '❌ Connection error'));
+        }
+
+        function addRow() {
+            if (isLocked) { alert('🔒 Fields are locked. Click "🔓 Unlock & Continue" to proceed.'); return; }
+            const entrydate    = document.getElementById('entrydate').value;
+            const scheduledate = document.getElementById('scheduledate').value;
+            const mcno         = document.getElementById('mcno').value.trim();
+            const itemno       = document.getElementById('itemno').value.trim();
+            const accountholder = document.getElementById('accountholder').value.trim();
+            const dia          = document.getElementById('dia').value;
+            const gg           = document.getElementById('gg').value;
+            const mctype       = document.getElementById('mctype').value;
+            const orderqty     = parseFloat(document.getElementById('orderqty').value);
+            const yarnreceived = parseFloat(document.getElementById('yarnreceived').value) || 0;
+            const capacity     = parseFloat(document.getElementById('capacity').value);
+
+            if (!mcno || !accountholder || !orderqty || !capacity || isNaN(orderqty) || isNaN(capacity)) {
+                alert('⚠️ Please fill in: Machine No, Account Holder, Order Qty, and Capacity!'); return;
+            }
+            if (yarnreceived > orderqty) { alert('⚠️ Yarn Received cannot exceed Order Qty!'); return; }
+            if (!sheetId) { alert('⚠️ Please setup your Google Sheet first!'); return; }
+
+            const balance = orderqty - yarnreceived;
+            machineData.push({
+                id: Date.now(),
+                date: entrydate, originalDate: entrydate,
+                scheduledate, mcno,
+                itemno: itemno || '', accountholder: accountholder || '', dia: dia || '', gg: gg || '', mctype: mctype || '',
+                orderqty, originalYarnreceived: yarnreceived, yarnreceived, balance, capacity
+            });
+            renderTable();
+            clearInputs();
+            updateStats();
+            autoSaveToGoogleSheets('ADD');
+            document.getElementById('mcno').focus();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            let dataToDisplay = machineData;
+            if (filteredIndices !== null) dataToDisplay = filteredIndices.map(i => machineData[i]);
+
+            if (dataToDisplay.length === 0 && machineData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="44" class="empty-message">📭 No data added yet. Add a machine to get started!</td></tr>`;
+                document.getElementById('statsSection').style.display = 'none';
+                return;
+            }
+            if (dataToDisplay.length === 0 && machineData.length > 0) {
+                tbody.innerHTML = `<tr><td colspan="44" class="empty-message">❌ No machines match your search</td></tr>`;
+                return;
+            }
+            document.getElementById('statsSection').style.display = 'grid';
+            tbody.innerHTML = dataToDisplay.map(data => {
+                let row = `<tr>
+                    <td>${data.date || '-'}</td>
+                    <td>${data.scheduledate || '-'}</td>
+                    <td>${data.mcno}</td>
+                    <td>${data.dia || '-'}</td>
+                    <td>${data.gg || '-'}</td>
+                    <td>${data.itemno || '-'}</td>
+                    <td>${data.accountholder || '-'}</td>
+                    <td>${data.mctype || '-'}</td>
+                    <td>${data.orderqty}</td>
+                    <td>${data.yarnreceived}</td>
+                    <td>${data.balance}</td>
+                    <td>${data.capacity}</td>`;
+                for (let dayNum = 1; dayNum <= 30; dayNum++) {
+                    const qty = calculateDailyProduction(dayNum, data.orderqty, data.yarnreceived, data.capacity, data.date, data.scheduledate);
+                    const colorClass = getColorClass(dayNum, data.orderqty, data.yarnreceived, data.capacity, qty, data.date, data.scheduledate);
+                    row += `<td class="${colorClass}">${qty === 0 ? '0' : Math.round(qty)}</td>`;
+                }
+                row += `<td>
+                    <div class="action-buttons">
+                        <button class="edit-btn" onclick="openEditModal(${data.id})">✏️</button>
+                        <button class="delete-btn" onclick="deleteRow(${data.id})">🗑️</button>
+                    </div>
+                </td></tr>`;
+                return row;
+            }).join('');
+        }
+
+
+        function openEditModal(id) {
+            const data = machineData.find(d => d.id === id);
+            if (!data) return;
+            editingId = id;
+            document.getElementById('modal-entrydate').value    = data.date || '';
+            document.getElementById('modal-scheduledate').value = data.scheduledate || '';
+            document.getElementById('modal-mcno').value         = data.mcno;
+            document.getElementById('modal-itemno').value       = data.itemno || '';
+            document.getElementById('modal-accountholder').value = data.accountholder || '';
+            document.getElementById('modal-dia').value          = data.dia || '';
+            document.getElementById('modal-gg').value           = data.gg || '';
+            document.getElementById('modal-mctype').value       = data.mctype || '';
+            document.getElementById('modal-orderqty').value     = data.orderqty;
+            document.getElementById('modal-yarnreceived').value = data.yarnreceived;
+            document.getElementById('modal-capacity').value     = data.capacity;
+            document.getElementById('modal-balance').value      = data.balance;
+            document.getElementById('editModal').style.display  = 'block';
+        }
+        function closeEditModal() { document.getElementById('editModal').style.display = 'none'; editingId = null; }
+
+        function saveEdit() {
+            const accountholder = document.getElementById('modal-accountholder').value.trim();
+            const orderqty     = parseFloat(document.getElementById('modal-orderqty').value);
+            const yarnreceived = parseFloat(document.getElementById('modal-yarnreceived').value) || 0;
+            const capacity     = parseFloat(document.getElementById('modal-capacity').value);
+            if (!accountholder || !orderqty || !capacity || isNaN(orderqty) || isNaN(capacity)) { alert('⚠️ Please fill in all required fields!'); return; }
+            if (yarnreceived > orderqty) { alert('⚠️ Yarn Received cannot exceed Order Qty!'); return; }
+            const index = machineData.findIndex(d => d.id === editingId);
+            if (index === -1) return;
+            const originalYarnreceived = machineData[index].yarnreceived;
+            machineData[index] = {
+                id: editingId,
+                date:       document.getElementById('modal-entrydate').value || '',
+                originalDate: machineData[index].date,
+                scheduledate: document.getElementById('modal-scheduledate').value || '',
+                mcno:   document.getElementById('modal-mcno').value.trim(),
+                itemno: document.getElementById('modal-itemno').value.trim() || '',
+                accountholder: accountholder || '',
+                dia:    document.getElementById('modal-dia').value || '',
+                gg:     document.getElementById('modal-gg').value || '',
+                mctype: document.getElementById('modal-mctype').value || '',
+                orderqty, originalYarnreceived, yarnreceived,
+                balance: orderqty - yarnreceived, capacity
+            };
+            renderTable(); updateStats(); renderBarView(); generateReport();
+            closeEditModal();
+            autoSaveToGoogleSheets('EDIT');
+            alert('✅ Updated!');
+        }
+
+        /* ── DELETE ───────────────────────────────────────────────── */
+        function deleteRow(id) {
+            if (!confirm('🗑️ Are you sure you want to delete this machine?')) return;
+            machineData = machineData.filter(d => d.id !== id);
+            filteredIndices = null;
+            renderTable(); updateStats(); renderBarView(); generateReport();
+            autoSaveToGoogleSheets('DELETE');
+        }
+
+        /* ── CLEAR INPUTS ─────────────────────────────────────────── */
+        function clearInputs() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('entrydate').value    = today;
+            document.getElementById('scheduledate').value = today;
+            ['mcno','itemno','accountholder','dia','gg','mctype','orderqty','yarnreceived','capacity'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+        }
+
+        /* ── CLEAR ALL ────────────────────────────────────────────── */
+        function clearAllData() {
+            document.getElementById('passwordModal').style.display = 'block';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('passwordInput').focus();
+        }
+        function closePasswordModal() {
+            document.getElementById('passwordModal').style.display = 'none';
+            document.getElementById('passwordInput').value = '';
+        }
+        function confirmPassword() {
+            if (document.getElementById('passwordInput').value !== CLEAR_PASSWORD) {
+                alert('❌ Incorrect password! Data not deleted.');
+                closePasswordModal(); return;
+            }
+            closePasswordModal();
+            machineData = [];
+            renderTable(); updateStats();
+            isLocked = true; lockInputs();
+            document.getElementById('lockOverlay').classList.add('active');
+            if (sheetId) {
+                showAutoSaveIndicator('saving', 'Clearing all data...');
+                const formData = new FormData();
+                formData.append('data', JSON.stringify({ action: 'CLEAR', sheetId, machineData: [] }));
+                fetch(SCRIPT_URL, { method: 'POST', body: formData })
+                    .then(r => r.text())
+                    .then(text => {
+                        let result;
+                        try { result = JSON.parse(text); } catch(e) { result = { success: false }; }
+                        showAutoSaveIndicator(result.success ? 'success' : 'error', result.success ? '✅ All data cleared!' : '❌ Clear failed');
+                        if (document.getElementById('barview').classList.contains('active')) renderBarChartsLive();
+                    })
+                    .catch(() => showAutoSaveIndicator('error', '❌ Cannot connect to Google Sheets.'));
+            }
+        }
+        function lockInputs() {
+            document.querySelectorAll('input:not(#setup-sheet-id)').forEach(i => i.disabled = true);
+            document.querySelectorAll('button').forEach(b => { if (!b.textContent.includes('Unlock')) b.disabled = true; });
+        }
+        function unlockAfterClear() {
+            isLocked = false;
+            document.getElementById('lockOverlay').classList.remove('active');
+            document.querySelectorAll('input:not(#setup-sheet-id)').forEach(i => i.disabled = false);
+            document.querySelectorAll('button').forEach(b => b.disabled = false);
+            clearInputs();
+            document.getElementById('mcno').focus();
+        }
+
+
+        function performSearch() {
+            const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!searchTerm) { alert('Please enter a search term!'); return; }
+            showAutoSaveIndicator('saving', 'Searching Google Sheets...');
+            fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'LOAD', sheetId }) })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success && result.machineData && result.machineData.length > 0) {
+                        machineData = result.machineData.map((row, i) => ({
+                            id: Date.now() + i + Math.floor(Math.random() * 1000),
+                            date: row.date || '', originalDate: row.date || '',
+                            scheduledate: row.scheduledate || row.date || '',
+                            mcno: row.mcno || '', itemno: row.itemno || '', accountholder: row.accountholder || '',
+                            dia: row.dia || '', gg: row.gg || '', mctype: row.mctype || '',
+                            orderqty: parseFloat(row.orderqty) || 0,
+                            originalYarnreceived: parseFloat(row.yarnreceived) || 0,
+                            yarnreceived: parseFloat(row.yarnreceived) || 0,
+                            balance: parseFloat(row.balance) || 0,
+                            capacity: parseFloat(row.capacity) || 0
+                        }));
+                        filteredIndices = machineData
+                            .map((data, index) => ({ data, index }))
+                            .filter(({ data }) =>
+                                (data.mcno   && data.mcno.toLowerCase().includes(searchTerm)) ||
+                                (data.date   && data.date.toString().includes(searchTerm)) ||
+                                (data.itemno && data.itemno.toLowerCase().includes(searchTerm)) ||
+                                (data.accountholder && data.accountholder.toLowerCase().includes(searchTerm))
+                            )
+                            .map(({ index }) => index);
+                        if (filteredIndices.length === 0) {
+                            showAutoSaveIndicator('error', 'No results found');
+                            filteredIndices = null; machineData = [];
+                        } else {
+                            showAutoSaveIndicator('success', '✅ Found ' + filteredIndices.length + ' result(s)!');
+                        }
+                        renderTable(); updateStats();
+                    }
+                })
+                .catch(() => showAutoSaveIndicator('error', '❌ Connection error'));
+        }
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filteredIndices = null;
+            renderTable(); updateStats();
+        }
+
+  
+        function updateStats() {
+            document.getElementById('totalMachines').textContent  = new Set(machineData.map(d => d.mcno)).size;
+            document.getElementById('totalOrders').textContent    = Math.round(machineData.reduce((s, d) => s + d.orderqty, 0));
+            document.getElementById('totalReceived').textContent  = Math.round(machineData.reduce((s, d) => s + d.yarnreceived, 0));
+            document.getElementById('totalBalance').textContent   = Math.round(machineData.reduce((s, d) => s + d.balance, 0));
+        }
+
+  
+        function fmtDate(d) {
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function buildDays(data) {
+            const { orderqty, yarnreceived, capacity, scheduledate } = data;
+            const balance    = orderqty - yarnreceived;
+            const windowDays = 30;
+            const today      = new Date();
+            const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+            let scheduleMidnight;
+            if (scheduledate && typeof scheduledate === 'string' && scheduledate.includes('-')) {
+                const sp = scheduledate.split('-');
+                scheduleMidnight = new Date(parseInt(sp[0]), parseInt(sp[1]) - 1, parseInt(sp[2]));
+            } else {
+                scheduleMidnight = new Date(todayMidnight);
+            }
+
+            const greenDaysFull    = Math.floor(yarnreceived / capacity);
+            const greenRemainder   = yarnreceived % capacity;
+            const hasSplitDay      = greenRemainder > 0 && balance > 0;
+            const splitUsedYellow  = hasSplitDay ? Math.min(capacity - greenRemainder, balance) : 0;
+            const remainingBalance = balance - splitUsedYellow;
+            const yellowFull2      = Math.floor(remainingBalance / capacity);
+            const yellowRem2       = remainingBalance % capacity;
+
+            const days = [];
+            for (let d = 0; d < windowDays; d++) {
+                const columnDate = new Date(todayMidnight);
+                columnDate.setDate(todayMidnight.getDate() + d);
+
+                if (columnDate < scheduleMidnight) {
+                    days.push({ cls: 'blank', date: columnDate });
+                    continue;
+                }
+
+                const daysSinceSchedule = Math.floor((columnDate - scheduleMidnight) / (1000 * 60 * 60 * 24));
+
+        
+                if (daysSinceSchedule < greenDaysFull) {
+                    days.push({ cls: 'green', date: columnDate, kg: capacity });
+                    continue;
+                }
+
+
+                if (daysSinceSchedule === greenDaysFull && greenRemainder > 0) {
+                    if (balance > 0) {
+                        days.push({ cls: 'split', date: columnDate, kg: greenRemainder, type: 'green-yellow' });
+                    } else {
+                        days.push({ cls: 'green', date: columnDate, kg: greenRemainder });
+                    }
+                    continue;
+                }
+
+                const yellowStartOffset = greenDaysFull + (greenRemainder > 0 ? 1 : 0);
+                const yellowDayIndex    = daysSinceSchedule - yellowStartOffset;
+
+                if (yellowDayIndex >= 0 && yellowDayIndex < yellowFull2) {
+                    days.push({ cls: 'yellow', date: columnDate, kg: capacity });
+                } else if (yellowDayIndex === yellowFull2 && yellowRem2 > 0) {
+                    days.push({ cls: 'split', date: columnDate, kg: yellowRem2, type: 'yellow-red' });
+                } else {
+                    days.push({ cls: 'red', date: columnDate });
+                }
+            }
+            return days.slice(0, windowDays);
+        }
+
+        function renderBarChartsLive() {
+            if (!machineData || machineData.length === 0) {
+                document.getElementById('barChartContainer').innerHTML =
+                    '<div class="bar-no-data">📭 No data added yet. Add entries on Dashboard tab to see bar charts!</div>';
+                return;
+            }
+            renderBarCharts(machineData);
+        }
+
+        function renderBarCharts(data) {
+            const container = document.getElementById('barChartContainer');
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="bar-no-data">📭 No data added yet.</div>';
+                return;
+            }
+            const pct     = (1 / 30 * 100).toFixed(4);
+            const halfPct = (0.5 / 30 * 100).toFixed(4);
+
+            container.innerHTML = data.map(item => {
+                const days    = buildDays(item);
+                const balance = item.orderqty - item.yarnreceived;
+
+                const daysHtml = days.map(day => {
+                    const dateStr = fmtDate(day.date);
+
+                    if (day.cls === 'split') {
+                        if (day.type === 'green-yellow') {
+                            const greenTip  = `📅 ${dateStr}|📦 Order Qty: ${item.orderqty}kg|🟢 Yarn Received Qty: ${item.yarnreceived}kg|⚙️ Capacity: ${item.capacity}kg|🧵 To be Knitted Qty: ${Math.round(day.kg)}kg`;
+                            const balanceQty = Math.min(item.capacity - day.kg, balance);
+                            const yellowTip = `📅 ${dateStr}|📦 Order Qty: ${item.orderqty}kg|🟡 Balance Yarn Awaiting Qty: ${balance}kg|⚙️ Capacity: ${item.capacity}kg|🟡 Balance Qty: ${Math.round(balanceQty)}kg`;
+                            const mkSlice = (cls, tip) =>
+                                `<div class="day-slice ${cls}" style="width:${halfPct}%" data-tip="${tip}"
+                                    onmouseenter="showTip(event,this)" onmousemove="moveTip(event)"
+                                    onmouseleave="hideTip()" ontouchstart="touchTip(event,this)" ontouchend="delayHideTip()"></div>`;
+                            return mkSlice('green', greenTip) + mkSlice('yellow', yellowTip);
+                        } else if (day.type === 'yellow-red') {
+                            const sp = item.scheduledate.split('-');
+                            const scheduleMidnight = new Date(parseInt(sp[0]), parseInt(sp[1]) - 1, parseInt(sp[2]));
+                            const daysSinceSchedule = Math.floor((day.date - scheduleMidnight) / (1000 * 60 * 60 * 24));
+                            const greenDaysFull = Math.floor(item.yarnreceived / item.capacity);
+                            const greenRemainder = item.yarnreceived % item.capacity;
+                            const splitUsedYellow = greenRemainder > 0 && balance > 0 ? Math.min(item.capacity - greenRemainder, balance) : 0;
+                            const yellowStartOffset = greenDaysFull + (greenRemainder > 0 ? 1 : 0);
+                            const yellowDayIndex = daysSinceSchedule - yellowStartOffset;
+                            const balanceUsedBefore = splitUsedYellow + (yellowDayIndex * item.capacity);
+                            const balanceQtyDay = Math.min(item.capacity, balance - balanceUsedBefore);
+                            
+                            const yellowTip = `📅 ${dateStr}|📦 Order Qty: ${item.orderqty}kg|🟡 Balance Yarn Awaiting Qty: ${balance}kg|⚙️ Capacity: ${item.capacity}kg|🟡 Balance Qty: ${Math.round(balanceQtyDay)}kg`;
+                            const redTip = `📅 ${dateStr}|❌ No Program`;
+                            const mkSlice = (cls, tip) =>
+                                `<div class="day-slice ${cls}" style="width:${halfPct}%" data-tip="${tip}"
+                                    onmouseenter="showTip(event,this)" onmousemove="moveTip(event)"
+                                    onmouseleave="hideTip()" ontouchstart="touchTip(event,this)" ontouchend="delayHideTip()"></div>`;
+                            return mkSlice('yellow', yellowTip) + mkSlice('red', redTip);
+                        }
+                    }
+
+                    let tip = '';
+                    if      (day.cls === 'green')  tip = `📅 ${dateStr}|📦 Order Qty: ${item.orderqty}kg|🟢 Yarn Received Qty: ${item.yarnreceived}kg|⚙️ Capacity: ${item.capacity}kg|🧵 To be Knitted Qty: ${Math.round(day.kg)}kg`;
+                    else if (day.cls === 'yellow') {
+                        const sp = item.scheduledate.split('-');
+                        const scheduleMidnight = new Date(parseInt(sp[0]), parseInt(sp[1]) - 1, parseInt(sp[2]));
+                        const daysSinceSchedule = Math.floor((day.date - scheduleMidnight) / (1000 * 60 * 60 * 24));
+                        const greenDaysFull = Math.floor(item.yarnreceived / item.capacity);
+                        const greenRemainder = item.yarnreceived % item.capacity;
+                        const splitUsedYellow = greenRemainder > 0 && balance > 0 ? Math.min(item.capacity - greenRemainder, balance) : 0;
+                        const yellowStartOffset = greenDaysFull + (greenRemainder > 0 ? 1 : 0);
+                        const yellowDayIndex = daysSinceSchedule - yellowStartOffset;
+                        const balanceUsedBefore = splitUsedYellow + (yellowDayIndex * item.capacity);
+                        const balanceQtyDay = Math.min(item.capacity, balance - balanceUsedBefore);
+                        tip = `📅 ${dateStr}|📦 Order Qty: ${item.orderqty}kg|🟡 Balance Yarn Awaiting Qty: ${balance}kg|⚙️ Capacity: ${item.capacity}kg|🟡 Balance Qty: ${Math.round(balanceQtyDay)}kg`;
+                    }
+                    else if (day.cls === 'red')    tip = `📅 ${dateStr}|❌ No Program`;
+                    else                           tip = `📅 ${dateStr}|⚪ No Schedule`;
+
+                    return `<div class="day-slice ${day.cls}" style="width:${pct}%" data-tip="${tip}"
+                        onmouseenter="showTip(event,this)" onmousemove="moveTip(event)"
+                        onmouseleave="hideTip()" ontouchstart="touchTip(event,this)" ontouchend="delayHideTip()"></div>`;
+                }).join('');
+
+                return `
+                <div class="bar-chart-item">
+                    <div class="bar-chart-header">
+                        <div><div class="bar-info-label">M/C No</div><div class="bar-info-value">${item.mcno}</div></div>
+                        <div><div class="bar-info-label">Item No</div><div class="bar-info-value">${item.itemno || '-'}</div></div>
+                        <div><div class="bar-info-label">A/C Holder</div><div class="bar-info-value">${item.accountholder || '-'}</div></div>
+                        <div><div class="bar-info-label">Schedule</div><div class="bar-info-value">${item.scheduledate || '-'}</div></div>
+                    </div>
+                    <div class="bar-wrapper">${daysHtml}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderBarView() { renderBarChartsLive(); }
+
+
+        let reportFilteredData = null;
+
+        function fetchAndFilterReport() {
+            const fromVal  = document.getElementById('report-from-date').value;
+            const toVal    = document.getElementById('report-to-date').value;
+            const keyword  = (document.getElementById('report-search').value || '').trim().toLowerCase();
+
+            if (!fromVal && !toVal && !keyword) {
+                alert('⚠️ Please enter:\n✓ Date Range (From & To Date)\n✓ Item No / M/C No\n✓ Or Both!');
+                return;
+            }
+
+            if (fromVal && toVal && fromVal > toVal) {
+                alert('⚠️ From Date cannot be greater than To Date!');
+                return;
+            }
+
+            const tbody  = document.getElementById('reportTableBody');
+            const infoEl = document.getElementById('report-result-info');
+            tbody.innerHTML = `<tr><td colspan="11" class="empty-message">⏳ Fetching from Google Sheets...</td></tr>`;
+            infoEl.textContent = '';
+            showAutoSaveIndicator('saving', 'Loading report data...');
+
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'LOAD', sheetId: sheetId })
+            })
+            .then(r => r.text())
+            .then(text => {
+                let result;
+                try {
+                    result = JSON.parse(text);
+                } catch(e) {
+                    result = { success: false, error: 'Parse error' };
+                }
+
+                if (!result.success || !Array.isArray(result.machineData) || result.machineData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="11" class="empty-message">❌ No data found in Google Sheets</td></tr>`;
+                    showAutoSaveIndicator('error', '❌ ' + (result.error || 'No data'));
+                    return;
+                }
+
+                const allData = result.machineData.map((row, i) => ({
+                    id: Date.now() + i + Math.floor(Math.random() * 1000),
+                    date:        row.date || '',
+                    scheduledate: row.scheduledate || row.date || '',
+                    mcno:        row.mcno || '',
+                    itemno:      row.itemno || '',
+                    accountholder: row.accountholder || '',
+                    dia:         row.dia || '',
+                    gg:          row.gg || '',
+                    mctype:      row.mctype || '',
+                    orderqty:    parseFloat(row.orderqty)    || 0,
+                    yarnreceived: parseFloat(row.yarnreceived) || 0,
+                    balance:     parseFloat(row.balance)     || 0,
+                    capacity:    parseFloat(row.capacity)    || 0
+                }));
+
+                const fromStr = fromVal || null;
+                const toStr   = toVal   || null;
+
+                const filtered = allData.filter(data => {
+                    if (fromStr || toStr) {
+                        const entryStr = (data.date || '').substring(0, 10);
+                        if (!entryStr) return false;
+                        if (fromStr && entryStr < fromStr) return false;
+                        if (toStr && entryStr > toStr) return false;
+                    }
+
+                    if (keyword) {
+                        const matchMC   = data.mcno   && data.mcno.toLowerCase().includes(keyword);
+                        const matchItem = data.itemno && data.itemno.toLowerCase().includes(keyword);
+                        const matchAC   = data.accountholder && data.accountholder.toLowerCase().includes(keyword);
+                        if (!matchMC && !matchItem && !matchAC) return false;
+                    }
+
+                    return true;
+                });
+
+                reportFilteredData = filtered;
+                showAutoSaveIndicator('success', `✅ Loaded ${allData.length} records`);
+
+                if (filtered.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="11" class="empty-message">📭 No records match your filter</td></tr>`;
+                    infoEl.textContent = 'No matching records';
+                    return;
+                }
+
+                infoEl.textContent = `Showing ${filtered.length} of ${allData.length} record(s)`;
+                tbody.innerHTML = filtered.map(d => {
+                    const yarnRcvdDays = d.capacity > 0 ? Math.ceil(d.yarnreceived / d.capacity) : 0;
+                    const balanceDays = d.capacity > 0 ? Math.ceil(d.balance / d.capacity) : 0;
+                    return `
+                    <tr>
+                        <td>${d.date || '-'}</td>
+                        <td>${d.scheduledate || '-'}</td>
+                        <td>${d.mcno}</td>
+                        <td>${d.itemno || '-'}</td>
+                        <td>${d.accountholder || '-'}</td>
+                        <td>${d.orderqty}</td>
+                        <td>${d.yarnreceived}</td>
+                        <td>${d.balance}</td>
+                        <td>${d.capacity}</td>
+                        <td>${yarnRcvdDays > 0 ? yarnRcvdDays + ' Days' : '-'}</td>
+                        <td>${balanceDays > 0 ? balanceDays + ' Days' : '-'}</td>
+                    </tr>`;
+                }).join('');
+            })
+            .catch(err => {
+                console.error('❌ Fetch error:', err);
+                tbody.innerHTML = `<tr><td colspan="11" class="empty-message">❌ Connection error. Check internet.</td></tr>`;
+                showAutoSaveIndicator('error', '❌ Connection error');
+            });
+        }
+
+        function generateReport() {
+            const tbody  = document.getElementById('reportTableBody');
+            const infoEl = document.getElementById('report-result-info');
+            if (!machineData || machineData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="empty-message">📭 Use filters above and click 🔍 Search to load report from Google Sheets</td></tr>`;
+                infoEl.textContent = '';
+                return;
+            }
+            reportFilteredData = machineData;
+            infoEl.textContent = `Showing ${machineData.length} record(s)`;
+            tbody.innerHTML = machineData.map(d => {
+                const yarnRcvdDays = d.capacity > 0 ? Math.ceil(d.yarnreceived / d.capacity) : 0;
+                const balanceDays = d.capacity > 0 ? Math.ceil(d.balance / d.capacity) : 0;
+                return `
+                <tr>
+                    <td>${d.date || '-'}</td>
+                    <td>${d.scheduledate || '-'}</td>
+                    <td>${d.mcno}</td>
+                    <td>${d.itemno || '-'}</td>
+                    <td>${d.accountholder || '-'}</td>
+                    <td>${d.orderqty}</td>
+                    <td>${d.yarnreceived}</td>
+                    <td>${d.balance}</td>
+                    <td>${d.capacity}</td>
+                    <td>${yarnRcvdDays > 0 ? yarnRcvdDays + ' Days' : '-'}</td>
+                    <td>${balanceDays > 0 ? balanceDays + ' Days' : '-'}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function filterReport() {
+            fetchAndFilterReport();
+        }
+
+        function clearReportFilter() {
+            document.getElementById('report-from-date').value = '';
+            document.getElementById('report-to-date').value   = '';
+            document.getElementById('report-search').value    = '';
+            document.getElementById('report-result-info').textContent = '';
+            reportFilteredData = null;
+            generateReport();
+        }
+
+        function downloadExcel() {
+            const data = reportFilteredData !== null ? reportFilteredData : machineData;
+            if (!data || data.length === 0) { alert('No data to export!'); return; }
+            const exportRows = data.map(d => {
+                const yarnRcvdDays = d.capacity > 0 ? Math.ceil(d.yarnreceived / d.capacity) : 0;
+                const balanceDays = d.capacity > 0 ? Math.ceil(d.balance / d.capacity) : 0;
+                return {
+                    'Entry Date':      d.date || '',
+                    'Schedule Date':   d.scheduledate || '',
+                    'M/C No':          d.mcno,
+                    'Item No':         d.itemno || '',
+                    'Account Holder':  d.accountholder || '',
+                    'Order Qty':       d.orderqty,
+                    'Yarn Received':   d.yarnreceived,
+                    'Balance':         d.balance,
+                    'Capacity':        d.capacity,
+                    'Yarn Rcvd Days':  yarnRcvdDays > 0 ? yarnRcvdDays : '',
+                    'Balance Days':    balanceDays > 0 ? balanceDays : ''
+                };
+            });
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Planning Report');
+            XLSX.writeFile(wb, 'Yarn_Planning_Report.xlsx');
+        }
+
+        async function downloadPDF() {
+    const data = reportFilteredData !== null ? reportFilteredData : machineData;
+    if (!data || data.length === 0) { alert('No data to export!'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4');
+    let y = 15;
+    
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(31, 78, 120);
+    doc.text('SHAHI EXPORTS PRIVATE LIMITED - TIRUPUR', 145, 7, { align: 'center' });
+    
+
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(31, 78, 120);
+    doc.text('Yarn Planning Report', 145, 12, { align: 'center' });
+    
+    y = 18;
+    
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    
+    const columns = [
+        { name: 'EntryDate', width: 25 },
+        { name: 'ScheduleDate', width: 30 },
+        { name: 'M/C No', width: 20 },
+        { name: 'ItemNo', width: 18 },
+        { name: 'AccountHolder', width: 35 },
+        { name: 'OrderQty', width: 24 },
+        { name: 'YarnRcvd', width: 25 },
+        { name: 'Balance', width: 20 },
+        { name: 'Capacity', width: 23 },
+        { name: 'YarnDays', width: 25 },
+        { name: 'BalanceDays', width: 32 }
+    ];
+    
+    let x = 6;
+    columns.forEach(col => {
+
+        doc.setFillColor(31, 78, 120);
+        doc.rect(x, y, col.width, 13, 'F');
+        
+   
+        doc.setTextColor(255, 255, 255);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(12);
+        
+       
+        doc.text(col.name, x + col.width/2, y + 6.5, { 
+            align: 'center', 
+            maxWidth: col.width - 1,
+            lineHeightFactor: 1.3
+        });
+        x += col.width;
+    });
+    
+    y += 15;
+    doc.setFont(undefined, 'normal');
+    
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    
+    data.forEach((d, index) => {
+        const yarnRcvdDays = d.capacity > 0 ? Math.ceil(d.yarnreceived / d.capacity) : 0;
+        const balanceDays = d.capacity > 0 ? Math.ceil(d.balance / d.capacity) : 0;
+        
+       
+        if (y > 260) {
+            doc.addPage();
+            y = 15;
+            
+      
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(31, 78, 120);
+            doc.text('SHAHI EXPORTS PRIVATE LIMITED - TIRUPUR', 145, 7, { align: 'center' });
+            
+            doc.setFontSize(13);
+            doc.text('Yarn Planning Report', 145, 12, { align: 'center' });
+            
+            y = 18;
+            
+      
+            doc.setFillColor(31, 78, 120);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(12);
+            x = 6;
+            columns.forEach(col => {
+                doc.rect(x, y, col.width, 13, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.text(col.name, x + col.width/2, y + 6.5, { 
+                    align: 'center', 
+                    maxWidth: col.width - 1,
+                    lineHeightFactor: 1.3
+                });
+                x += col.width;
+            });
+            y += 15;
+            doc.setTextColor(0, 0, 0);
+            doc.setFont(undefined, 'normal');
+        }
+        
+   
+        if (index % 2 === 0) {
+            doc.setFillColor(245, 245, 245);
+            doc.rect(6, y, 278, 10, 'F');
+        }
+        
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        x = 6;
+        
+        const rowData = [
+            d.date || '-',
+            d.scheduledate || '-',
+            d.mcno || '-',
+            d.itemno || '-',
+            d.accountholder || '-',
+            d.orderqty.toString(),
+            d.yarnreceived.toString(),
+            d.balance.toString(),
+            d.capacity.toString(),
+            yarnRcvdDays > 0 ? yarnRcvdDays + 'D' : '-',
+            balanceDays > 0 ? balanceDays + 'D' : '-'
+        ];
+        
+        rowData.forEach((val, i) => {
+        
+            const isNumeric = i > 4 || i === 2;
+            const alignment = isNumeric ? 'center' : 'center';
+            
+            doc.text(val, x + columns[i].width/2, y + 5.5, { 
+                align: alignment,
+                maxWidth: columns[i].width - 2
+            });
+            x += columns[i].width;
+        });
+        
+     
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(6, y, 278, 10);
+        
+        y += 10;
+    });
+    
+    doc.save('Yarn_Planning_Report_Shahi_Exports.pdf');
+}
+        
+
+     
+        function loadFromGoogleSheets() {
+            if (!sheetId) return;
+            showAutoSaveIndicator('saving', 'Loading from Google Sheets...');
+            document.getElementById('tableBody').innerHTML =
+                `<tr><td colspan="44" class="empty-message">⏳ Loading from Google Sheets...</td></tr>`;
+            fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'LOAD', sheetId }) })
+                .then(r => r.text())
+                .then(text => {
+                    let result;
+                    try { result = JSON.parse(text); } catch(e) { result = { success: false, error: 'Parse error: ' + text }; }
+                    if (result.success && Array.isArray(result.machineData) && result.machineData.length > 0) {
+                        machineData = result.machineData.map((row, i) => ({
+                            id: Date.now() + i + Math.floor(Math.random() * 1000),
+                            date: row.date || '', originalDate: row.originalDate || row.date || '',
+                            scheduledate: row.scheduledate || row.date || '',
+                            mcno: row.mcno || '', itemno: row.itemno || '', accountholder: row.accountholder || '',
+                            dia: row.dia || '', gg: row.gg || '', mctype: row.mctype || '',
+                            orderqty: parseFloat(row.orderqty) || 0,
+                            originalYarnreceived: parseFloat(row.originalYarnreceived || row.yarnreceived) || 0,
+                            yarnreceived: parseFloat(row.yarnreceived) || 0,
+                            balance: parseFloat(row.balance) || 0,
+                            capacity: parseFloat(row.capacity) || 0
+                        }));
+                        renderTable(); updateStats();
+                        showAutoSaveIndicator('success', `✅ Loaded ${machineData.length} records from Google Sheets!`);
+                        if (document.getElementById('barview').classList.contains('active')) renderBarChartsLive();
+                    } else {
+                        machineData = [];
+                        renderTable(); updateStats();
+                        showAutoSaveIndicator('error', '❌ ' + (result.error || 'No data found in Google Sheets'));
+                        document.getElementById('tableBody').innerHTML =
+                            `<tr><td colspan="44" class="empty-message">❌ Failed to load from Google Sheets. Please check your connection and try again.</td></tr>`;
+                    }
+                })
+                .catch(err => {
+                    console.error('Load error:', err);
+                    machineData = [];
+                    renderTable(); updateStats();
+                    showAutoSaveIndicator('error', '❌ Cannot connect to Google Sheets');
+                    document.getElementById('tableBody').innerHTML =
+                        `<tr><td colspan="44" class="empty-message">❌ Cannot connect to Google Sheets. Please check your internet connection.</td></tr>`;
+                });
+        }
+
+   
+        const tipEl = document.getElementById('tooltipPopup');
+        function showTip(e, el) {
+            const text = el.getAttribute('data-tip');
+            if (!text) return;
+            tipEl.innerHTML = text.split('|').map(l => `<div>${l.trim()}</div>`).join('');
+            tipEl.style.display = 'block';
+            moveTip(e);
+        }
+        function moveTip(e)    { tipEl.style.left = (e.clientX + 14) + 'px'; tipEl.style.top = (e.clientY - 50) + 'px'; }
+        function hideTip()     { tipEl.style.display = 'none'; }
+        function touchTip(e, el) { e.preventDefault(); showTip(e.touches[0], el); }
+        function delayHideTip(){ setTimeout(hideTip, 2500); }
+
+        document.getElementById('mcno').addEventListener('change', function () {
+            const machine = machineDatabase.find(m => m.mcno === this.value.toUpperCase());
+            if (machine) document.getElementById('dia').value = machine.dia;
+        });
+        
+        document.getElementById('itemno').addEventListener('input', function () {
+            this.value = this.value.toUpperCase();
+        });
+        
+        document.getElementById('accountholder').addEventListener('input', function () {
+            if (this.value.length > 0) {
+                this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1).toLowerCase();
+            }
+        });
+
+        const inputIds = ['entrydate','scheduledate','mcno','dia','gg','itemno','accountholder','mctype','orderqty','yarnreceived','capacity'];
+        inputIds.forEach((id, index) => {
+            document.getElementById(id).addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (index < inputIds.length - 1) document.getElementById(inputIds[index + 1]).focus();
+                    else addRow();
+                }
+            });
+        });
+        
+        document.getElementById('modal-itemno').addEventListener('input', function () {
+            this.value = this.value.toUpperCase();
+        });
+        
+        document.getElementById('modal-accountholder').addEventListener('input', function () {
+            if (this.value.length > 0) {
+                this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1).toLowerCase();
+            }
+        });
+
+  
+        window.addEventListener('click', event => {
+            ['setupModal','editModal','passwordModal'].forEach(id => {
+                const modal = document.getElementById(id);
+                if (event.target === modal) {
+                    if (id === 'setupModal')   closeSetupModal();
+                    if (id === 'editModal')    closeEditModal();
+                    if (id === 'passwordModal') closePasswordModal();
+                }
+            });
+        });
+
+  
+        document.addEventListener('DOMContentLoaded', initializeDatePicker);
+    </script>
+</body>
+</html>
